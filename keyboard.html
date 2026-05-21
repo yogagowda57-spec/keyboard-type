@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Virtual Mouse & Keyboard</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,sans-serif;
+}
+
+body{
+    overflow:hidden;
+    background:black;
+    color:white;
+}
+
+video{
+    position:fixed;
+    width:100vw;
+    height:100vh;
+    object-fit:cover;
+    transform:scaleX(-1);
+    z-index:-2;
+}
+
+canvas{
+    position:fixed;
+    top:0;
+    left:0;
+    z-index:-1;
+}
+
+#cursor{
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    border:3px solid #00ff88;
+    position:fixed;
+    pointer-events:none;
+    box-shadow:0 0 25px #00ff88;
+    transition:0.03s;
+    z-index:9999;
+}
+
+.title{
+    position:fixed;
+    top:20px;
+    width:100%;
+    text-align:center;
+    font-size:30px;
+    color:#00ff88;
+    text-shadow:0 0 20px #00ff88;
+    font-weight:bold;
+}
+
+#typedText{
+    position:fixed;
+    top:80px;
+    left:50%;
+    transform:translateX(-50%);
+    width:90%;
+    max-width:900px;
+    min-height:70px;
+    padding:18px;
+    border-radius:20px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,0.2);
+    font-size:26px;
+    overflow-wrap:break-word;
+}
+
+.keyboard{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+    width:95%;
+    max-width:1100px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(15px);
+    border:1px solid rgba(255,255,255,0.2);
+    border-radius:25px;
+    padding:20px;
+    display:grid;
+    grid-template-columns:repeat(10,1fr);
+    gap:12px;
+}
+
+.key{
+    background:rgba(255,255,255,0.1);
+    border:1px solid rgba(255,255,255,0.2);
+    border-radius:15px;
+    padding:18px;
+    text-align:center;
+    font-size:18px;
+    transition:0.2s;
+    user-select:none;
+}
+
+.key.active{
+    background:#00ff88;
+    color:black;
+    transform:scale(1.1);
+    box-shadow:0 0 20px #00ff88;
+}
+
+@media(max-width:700px){
+
+    .keyboard{
+        grid-template-columns:repeat(6,1fr);
+    }
+
+    .key{
+        padding:14px;
+        font-size:15px;
+    }
+
+    #typedText{
+        font-size:20px;
+    }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+
+<div class="title">
+    AI Virtual Mouse & Keyboard built by YOGA 
+</div>
+
+<div id="typedText">
+    Type using hand gestures...
+</div>
+
+<div id="cursor"></div>
+
+<div class="keyboard" id="keyboard"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const cursor = document.getElementById("cursor");
+const typedText = document.getElementById("typedText");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+navigator.mediaDevices.getUserMedia({
+    video:true
+}).then(stream=>{
+    video.srcObject = stream;
+});
+
+const keys = [
+"Q","W","E","R","T","Y","U","I","O","P",
+"A","S","D","F","G","H","J","K","L",
+"Z","X","C","V","B","N","M",
+"SPACE","DEL"
+];
+
+const keyboard = document.getElementById("keyboard");
+
+keys.forEach(letter=>{
+
+    const div = document.createElement("div");
+
+    div.className = "key";
+    div.innerText = letter;
+    div.id = "key-"+letter;
+
+    keyboard.appendChild(div);
+
+});
+
+function distance(a,b){
+
+    return Math.hypot(
+        a.x-b.x,
+        a.y-b.y
+    );
+
+}
+
+const hands = new Hands({
+
+    locateFile:(file)=>{
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }
+
+});
+
+hands.setOptions({
+
+    maxNumHands:2,
+    modelComplexity:1,
+    minDetectionConfidence:0.7,
+    minTrackingConfidence:0.7
+
+});
+
+let lastKey = null;
+let clickCooldown = false;
+
+hands.onResults(results=>{
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if(results.multiHandLandmarks){
+
+        results.multiHandLandmarks.forEach(hand=>{
+
+            for(let i=0;i<hand.length;i++){
+
+                let x = canvas.width - hand[i].x * canvas.width;
+                let y = hand[i].y * canvas.height;
+
+                ctx.beginPath();
+                ctx.arc(x,y,6,0,Math.PI*2);
+
+                ctx.fillStyle="#00ff88";
+                ctx.shadowBlur=20;
+                ctx.shadowColor="#00ff88";
+
+                ctx.fill();
+
+            }
+
+            for(let i=0;i<20;i++){
+
+                let x1 = canvas.width - hand[i].x * canvas.width;
+                let y1 = hand[i].y * canvas.height;
+
+                let x2 = canvas.width - hand[i+1].x * canvas.width;
+                let y2 = hand[i+1].y * canvas.height;
+
+                ctx.beginPath();
+                ctx.moveTo(x1,y1);
+                ctx.lineTo(x2,y2);
+
+                ctx.strokeStyle="#00ff88";
+                ctx.lineWidth=3;
+                ctx.shadowBlur=15;
+                ctx.shadowColor="#00ff88";
+
+                ctx.stroke();
+
+            }
+
+            const indexFinger = hand[8];
+            const thumb = hand[4];
+
+            let cursorX =
+            canvas.width - indexFinger.x * canvas.width;
+
+            let cursorY =
+            indexFinger.y * canvas.height;
+
+            cursor.style.left = cursorX+"px";
+            cursor.style.top = cursorY+"px";
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                canvas.width - thumb.x * canvas.width,
+                thumb.y * canvas.height
+            );
+
+            ctx.lineTo(cursorX,cursorY);
+
+            ctx.strokeStyle="#00ff88";
+            ctx.lineWidth=5;
+            ctx.shadowBlur=20;
+            ctx.shadowColor="#00ff88";
+
+            ctx.stroke();
+
+            const pinchDistance = distance(
+
+                {
+                    x:thumb.x,
+                    y:thumb.y
+                },
+
+                {
+                    x:indexFinger.x,
+                    y:indexFinger.y
+                }
+
+            );
+
+            if(pinchDistance < 0.035){
+
+                cursor.style.transform="scale(0.7)";
+
+                simulateKeyPress(cursorX,cursorY);
+
+            }else{
+
+                cursor.style.transform="scale(1)";
+                lastKey = null;
+
+            }
+
+        });
+
+    }
+
+});
+
+function simulateKeyPress(x,y){
+
+    if(clickCooldown) return;
+
+    document.querySelectorAll(".key").forEach(key=>{
+
+        const rect = key.getBoundingClientRect();
+
+        if(
+            x > rect.left &&
+            x < rect.right &&
+            y > rect.top &&
+            y < rect.bottom
+        ){
+
+            const keyValue = key.innerText;
+
+            if(lastKey !== keyValue){
+
+                key.classList.add("active");
+
+                if(keyValue === "SPACE"){
+
+                    typedText.innerHTML += " ";
+
+                }else if(keyValue === "DEL"){
+
+                    typedText.innerHTML =
+                    typedText.innerHTML.slice(0,-1);
+
+                }else{
+
+                    if(typedText.innerHTML ===
+                    "Type using hand gestures..."){
+
+                        typedText.innerHTML = "";
+                    }
+
+                    typedText.innerHTML += keyValue;
+
+                }
+
+                lastKey = keyValue;
+                clickCooldown = true;
+
+                setTimeout(()=>{
+
+                    key.classList.remove("active");
+                    clickCooldown = false;
+
+                },300);
+
+            }
+
+        }
+
+    });
+
+}
+
+const camera = new Camera(video,{
+
+    onFrame:async()=>{
+
+        await hands.send({
+            image:video
+        });
+
+    },
+
+    width:1280,
+    height:720
+
+});
+
+camera.start();
+
+window.addEventListener("resize",()=>{
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+});
+
+</script>
+
+</body>
+</html>

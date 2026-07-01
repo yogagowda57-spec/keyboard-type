@@ -78,18 +78,6 @@ While building this project, I practiced:
 
 ---
 
-## 📸 Screenshot
-
-> Add a screenshot of the application here.
-
-Example:
-
-```text
-screenshots/home.png
-```
-
----
-
 ## 🔮 Future Improvements
 
 * Multiple difficulty levels
